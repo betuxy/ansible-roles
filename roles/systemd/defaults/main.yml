@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: MIT-0
+---
+# Which systemd unit types this role manages. Each entry "type" here expects
+# three layered variables named systemd_<type>s_default,
+# systemd_<type>s, and systemd_<type>s_additional below.
+systemd_types:
+  - service
+  - socket
+  - timer
+  - path
+  - mount
+  - automount
+  - swap
+  - target
+  - slice
+  - scope
+
+# Each unit type follows the same three-layer pattern:
+#   *_default    -> base layer, normally left empty
+#   (plain name) -> main layer, intended for group_vars
+#   *_additional -> additional layer, intended for host_vars, merged last
+# Each layer is a list of unit objects, keyed by a required "name" field
+# (base name without the type suffix), e.g. {name: myapp} under
+# systemd_services deploys myapp.service. Entries sharing the same "name"
+# across layers are merged into a single unit, later layers taking priority.
+
+systemd_services_default: []
+systemd_services: []
+systemd_services_additional: []
+
+systemd_sockets_default: []
+systemd_sockets: []
+systemd_sockets_additional: []
+
+systemd_timers_default: []
+systemd_timers: []
+systemd_timers_additional: []
+
+systemd_paths_default: []
+systemd_paths: []
+systemd_paths_additional: []
+
+systemd_mounts_default: []
+systemd_mounts: []
+systemd_mounts_additional: []
+
+systemd_automounts_default: []
+systemd_automounts: []
+systemd_automounts_additional: []
+
+systemd_swaps_default: []
+systemd_swaps: []
+systemd_swaps_additional: []
+
+systemd_targets_default: []
+systemd_targets: []
+systemd_targets_additional: []
+
+systemd_slices_default: []
+systemd_slices: []
+systemd_slices_additional: []
+
+systemd_scopes_default: []
+systemd_scopes: []
+systemd_scopes_additional: []
+
+# list_merge strategy used to merge nested list-valued directives (e.g.
+# After:) when the same unit name appears in more than one layer.
+systemd_list_merge_strategy: append_rp
+
+# Run `systemctl daemon-reload` (system and/or user) after deploying units.
+systemd_daemon_reload: true
+
+# Run `loginctl enable-linger` for accounts that own user-scoped units, so
+# their units can run without an active login session.
+systemd_enable_linger: true

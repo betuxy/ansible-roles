@@ -1,0 +1,19 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  vars:
+    systemd_services_additional:
+      - name: molecule-test
+        sections:
+          Unit:
+            Description: "Molecule test service"
+          Service:
+            Type: oneshot
+            ExecStart: /bin/true
+          Install:
+            WantedBy: ["multi-user.target"]
+  tasks:
+    - name: Include systemd
+      ansible.builtin.include_role:
+        name: systemd

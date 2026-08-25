@@ -1,0 +1,50 @@
+---
+- name: 00-checks | Gather service_mgr fact if not already present
+  ansible.builtin.setup:
+    gather_subset: service_mgr
+  when: ansible_facts['service_mgr'] is not defined
+
+- name: 00-checks | Assert host uses systemd as service manager
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.service_mgr == "systemd"
+    fail_msg: "This role requires systemd as the init/service manager."
+
+- name: 00-checks | Combine layered systemd variables per unit type
+  ansible.builtin.set_fact:
+    _systemd_units: "{{ (_systemd_units | default([])) + (
+      [lookup('vars', 'systemd_' ~ item ~ 's_default'),
+      lookup('vars', 'systemd_' ~ item ~ 's'),
+      lookup('vars', 'systemd_' ~ item ~ 's_additional')]
+      | merge_systemd_units(item, systemd_list_merge_strategy)) }}"
+  loop: "{{ systemd_types }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: 00-checks | Assert unit scope is valid
+  ansible.builtin.assert:
+    that:
+      - item.scope in ['system', 'user']
+    fail_msg: "Unit '{{ item.unit }}' has invalid scope '{{ item.scope }}'; must be 'system' or 'user'."
+  loop: "{{ _systemd_units }}"
+  loop_control:
+    label: "{{ item.unit }}"
+
+- name: 00-checks | Assert user-scoped units declare an owning account
+  ansible.builtin.assert:
+    that:
+      - item.user is not none
+    fail_msg: "Unit '{{ item.unit }}' has scope 'user' but no 'user' account set."
+  loop: "{{ _systemd_units }}"
+  loop_control:
+    label: "{{ item.unit }}"
+  when: item.scope == 'user'
+
+- name: 00-checks | Split systemd units into system and user scope
+  ansible.builtin.set_fact:
+    _systemd_units_system: "{{ _systemd_units | selectattr('scope', 'equalto', 'system') | list }}"
+    _systemd_units_user: "{{ _systemd_units | selectattr('scope', 'equalto', 'user') | list }}"
+
+- name: 00-checks | Determine distinct accounts owning user-scoped units
+  ansible.builtin.set_fact:
+    _systemd_units_user_accounts: "{{ _systemd_units_user | map(attribute='user') | unique | list }}"

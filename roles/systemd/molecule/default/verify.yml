@@ -1,0 +1,25 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  tasks:
+    - name: Check unit file was deployed
+      ansible.builtin.stat:
+        path: /etc/systemd/system/molecule-test.service
+      register: _systemd_units_test_unit_file
+
+    - name: Assert unit file exists
+      ansible.builtin.assert:
+        that:
+          - _systemd_units_test_unit_file.stat.exists
+
+    - name: Gather status of molecule-test.service
+      ansible.builtin.systemd_service:
+        name: molecule-test.service
+      register: _systemd_units_test_unit_status
+      changed_when: false
+
+    - name: Assert unit is enabled
+      ansible.builtin.assert:
+        that:
+          - _systemd_units_test_unit_status.status.UnitFileState == "enabled"

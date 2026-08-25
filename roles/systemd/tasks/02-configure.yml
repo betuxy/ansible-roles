@@ -1,0 +1,74 @@
+---
+- name: 02-configure | Ensure per-user systemd unit directory exists
+  ansible.builtin.file:
+    path: "{{ getent_passwd[item.user][4] }}/.config/systemd/user"
+    state: directory
+    owner: "{{ item.user }}"
+    group: "{{ item.user }}"
+    mode: "0700"
+  loop: "{{ _systemd_units_user }}"
+  loop_control:
+    label: "{{ item.unit }}"
+
+- name: 02-configure | Deploy system-scoped unit files
+  ansible.builtin.template:
+    src: unit.j2
+    dest: "/etc/systemd/system/{{ item.unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ _systemd_units_system }}"
+  loop_control:
+    label: "{{ item.unit }}"
+
+- name: 02-configure | Deploy user-scoped unit files
+  ansible.builtin.template:
+    src: unit.j2
+    dest: "{{ getent_passwd[item.user][4] }}/.config/systemd/user/{{ item.unit }}"
+    owner: "{{ item.user }}"
+    group: "{{ item.user }}"
+    mode: "0644"
+  loop: "{{ _systemd_units_user }}"
+  loop_control:
+    label: "{{ item.unit }}"
+
+- name: 02-configure | Reload systemd system daemon
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when:
+    - systemd_daemon_reload | bool
+    - _systemd_units_system | length > 0
+
+- name: 02-configure | Reload systemd user daemon for each account
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+    scope: user
+  become: true
+  become_user: "{{ item }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ getent_passwd[item][1] }}"
+  loop: "{{ _systemd_units_user_accounts }}"
+  when: systemd_daemon_reload | bool
+
+- name: 02-configure | Manage state of system-scoped units
+  ansible.builtin.systemd_service:
+    name: "{{ item.unit }}"
+    state: "{{ item.state }}"
+    enabled: "{{ item.enabled }}"
+  loop: "{{ _systemd_units_system }}"
+  loop_control:
+    label: "{{ item.unit }}"
+
+- name: 02-configure | Manage state of user-scoped units
+  ansible.builtin.systemd_service:
+    name: "{{ item.unit }}"
+    scope: user
+    state: "{{ item.state }}"
+    enabled: "{{ item.enabled }}"
+  become: true
+  become_user: "{{ item.user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ getent_passwd[item.user][1] }}"
+  loop: "{{ _systemd_units_user }}"
+  loop_control:
+    label: "{{ item.unit }}"

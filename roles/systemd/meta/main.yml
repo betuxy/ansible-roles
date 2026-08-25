@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: MIT-0
+---
+galaxy_info:
+  author: Ole Pannbacker
+  description: Define and manage system-scoped and user-scoped systemd units via layered host_vars/group_vars.
+
+  license: MIT
+
+  min_ansible_version: "2.16"
+
+  platforms:
+    - name: Debian
+      versions:
+        - bookworm
+        - trixie
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+    - name: EL
+      versions:
+        - "9"
+
+  galaxy_tags:
+    - systemd
+    - systemdunit
+    - service
+
+dependencies: []

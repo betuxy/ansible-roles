@@ -1,0 +1,18 @@
+# {{ ansible_managed | default('Ansible managed - local changes will be overwritten') }}
+{% for section_name, directives in item.sections.items() %}
+[{{ section_name }}]
+{% for key, value in directives.items() %}
+{% if value is sameas true %}
+{{ key }}=yes
+{% elif value is sameas false %}
+{{ key }}=no
+{% elif value is iterable and value is not string and value is not mapping %}
+{% for v in value %}
+{{ key }}={{ v }}
+{% endfor %}
+{% else %}
+{{ key }}={{ value }}
+{% endif %}
+{% endfor %}
+
+{% endfor %}

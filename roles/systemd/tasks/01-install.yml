@@ -1,0 +1,26 @@
+---
+- name: 01-install | Look up account details for user-scoped unit owners
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ item }}"
+  loop: "{{ _systemd_units_user_accounts }}"
+  when: _systemd_units_user_accounts | length > 0
+
+- name: 01-install | Check lingering status for user-scoped unit owners
+  ansible.builtin.command:
+    cmd: "loginctl show-user {{ item }} -p Linger --value"
+  loop: "{{ _systemd_units_user_accounts }}"
+  register: _systemd_units_linger_status
+  changed_when: false
+  when: systemd_enable_linger | bool
+
+- name: 01-install | Enable lingering for user-scoped unit owners
+  ansible.builtin.command:
+    cmd: "loginctl enable-linger {{ item.item }}"
+  loop: "{{ _systemd_units_linger_status.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when:
+    - systemd_enable_linger | bool
+    - item.stdout | default('no') != 'yes'
+  changed_when: true

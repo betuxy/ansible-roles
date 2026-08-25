@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Include 00-checks | Pre-flight assertions and variable validation
+  ansible.builtin.import_tasks: 00-checks.yml
+
+- name: Include 01-install | Prepare accounts for user-scoped units
+  ansible.builtin.import_tasks: 01-install.yml
+
+- name: Include 02-configure | Deploy and manage systemd units
+  ansible.builtin.import_tasks: 02-configure.yml
