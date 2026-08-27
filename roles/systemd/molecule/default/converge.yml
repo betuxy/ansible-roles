@@ -3,8 +3,9 @@
   hosts: all
   become: true
   vars:
-    systemd_services_additional:
+    systemd_units_additional:
       - name: molecule-test
+        type: service
         sections:
           Unit:
             Description: "Molecule test service"

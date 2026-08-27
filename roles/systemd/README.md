@@ -12,32 +12,27 @@ either system-scoped (`/etc/systemd/system/`) or user-scoped
 
 ## Role Variables
 
-Units are split into one variable set per systemd unit type (see
-`systemd_types` below), so each type can be edited on its own without
-wading through unrelated units. Every type follows the same three-layer,
-list-of-objects pattern, shown here for the generic placeholder `<type>`
-(e.g. `service`, `timer`, `socket`, ...):
+Units are defined in a single three-layer list variable (`systemd_units`).
+Each entry carries a `type` field that identifies the systemd unit type,
+so any mix of unit types can live in one list without needing separate
+per-type variables.
 
-| Variable                       | type         | default                                                                          | required        | description                                                                                                             |
-| ------------------------------- | ------------ | --------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `systemd_types`                 | list(String) | `[service, socket, timer, path, mount, automount, swap, target, slice, scope]`    | no                | Unit types this role manages; drives which `systemd_<type>s*` variables below are read.                                 |
-| `systemd_<type>s_default`       | list(Dict)   | `[]`                                                                               | no                | Base layer, normally left empty; applies to every host with this role. Same schema as `systemd_<type>s` below.          |
-| `systemd_<type>s`                | list(Dict)   | `[]`                                                                               | no                | Main layer, intended for `group_vars` — units of this type shared across a group of hosts.                              |
-| &emsp;`name`                    | String       | None                                                                               | yes               | Base unit name, without the type suffix (e.g. `name: myapp` in `systemd_services` deploys `myapp.service`).             |
-| &emsp;`scope`                   | String       | "system"                                                                           | no                | `system` (installed in `/etc/systemd/system/`) or `user` (installed for a specific Linux account).                      |
-| &emsp;`user`                    | String       | None                                                                               | if `scope: user`  | Linux account that owns a user-scoped unit.                                                                             |
-| &emsp;`state`                   | String       | "started"                                                                          | no                | Desired `systemctl` state, passed straight to `ansible.builtin.systemd_service`.                                        |
-| &emsp;`enabled`                 | Boolean      | true                                                                               | no                | Whether the unit is enabled at boot/login.                                                                              |
-| &emsp;`sections`                | Dict         | `{}`                                                                               | no                | Unit file sections mirroring the INI structure directly (`Unit`, `Service`, `Timer`, `Install`, ...), see below.        |
-| `systemd_<type>s_additional`    | list(Dict)   | `[]`                                                                               | no                | Additional layer, intended for `host_vars` — units of this type specific to a single host. Same schema as above, merged on top of the two layers above. |
-| `systemd_list_merge_strategy`   | String       | "append_rp"                                                                        | no                | Merge strategy for list-valued directives (e.g. `After:`) when a unit's `name` appears in more than one layer. Same semantics as Ansible's `combine` filter's `list_merge`. |
-| `systemd_daemon_reload`         | Boolean      | true                                                                               | no                | Run `systemctl daemon-reload` (system and/or `--user`) after deploying units.                                           |
-| `systemd_enable_linger`         | Boolean      | true                                                                               | no                | Run `loginctl enable-linger` for accounts owning user-scoped units, so those units run without an active login session. |
-
-`<type>` expands to every entry in `systemd_types`, e.g. `systemd_services`,
-`systemd_services_default`, `systemd_services_additional` for `service`;
-`systemd_timers`, `systemd_timers_default`, `systemd_timers_additional`
-for `timer`; and so on.
+| Variable                      | type       | default       | required        | description                                                                                                             |
+| ----------------------------- | ---------- | ------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `systemd_units_default`       | list(Dict) | `[]`          | no              | Base layer, normally left empty; applies to every host with this role. Same schema as `systemd_units` below.            |
+| `systemd_units`               | list(Dict) | `[]`          | no              | Main layer, intended for `group_vars` — units shared across a group of hosts.                                           |
+| &emsp;`name`                  | String     | None          | yes             | Base unit name without the type suffix (e.g. `name: myapp` with `type: service` deploys `myapp.service`).              |
+| &emsp;`type`                  | String     | None          | yes             | Unit type: `service`, `socket`, `timer`, `path`, `mount`, `automount`, `swap`, `target`, `slice`, or `scope`.          |
+| &emsp;`scope`                 | String     | `"system"`    | no              | `system` (installed in `/etc/systemd/system/`) or `user` (installed for a specific Linux account).                      |
+| &emsp;`user`                  | String     | None          | if scope: user  | Linux account that owns a user-scoped unit.                                                                             |
+| &emsp;`state`                 | String     | `"started"`   | no              | Desired `systemctl` state, passed straight to `ansible.builtin.systemd_service`.                                        |
+| &emsp;`enabled`               | Boolean    | `true`        | no              | Whether the unit is enabled at boot/login.                                                                              |
+| &emsp;`sections`              | Dict       | `{}`          | no              | Unit file sections mirroring the INI structure directly (`Unit`, `Service`, `Timer`, `Install`, ...), see below.        |
+| `systemd_units_additional`    | list(Dict) | `[]`          | no              | Additional layer, intended for `host_vars` — units specific to a single host. Same schema as above, merged on top.     |
+| `systemd_list_merge_strategy` | String     | `"append_rp"` | no              | Merge strategy for list-valued directives (e.g. `After:`) when a unit's `name`+`type` appears in more than one layer. Same semantics as Ansible's `combine` filter's `list_merge`. |
+| `systemd_daemon_reload`       | Boolean    | `true`        | no              | Run `systemctl daemon-reload` (system and/or `--user`) after deploying units.                                           |
+| `systemd_enable_linger`       | Boolean    | `true`        | no              | Enable lingering for accounts owning user-scoped units, so those units run without an active login session.              |
+| `systemd_linger_method`       | String     | `"file"`      | no              | How linger is enabled: `file` creates `/var/lib/systemd/linger/<user>` directly (no `command` module, but does not signal the running logind immediately); `command` runs `loginctl enable-linger` via D-Bus and takes effect instantly on a live system. |
 
 ### `sections`: any systemd directive, for any unit type
 
@@ -53,13 +48,14 @@ unit-type-specific man pages below for the rest.
 
 ## Merging units across layers
 
-Within each type, the three layers are concatenated in this order:
-`*_default` → plain → `*_additional`. Entries sharing the same `name`
-across layers are merged into a single unit — a later layer overrides the
-same field from an earlier layer, and list-valued directives are merged
-per `systemd_list_merge_strategy`. This lets you set common units in
-`group_vars/<group>.yml` and layer host-specific units or overrides in
-`host_vars/<host>.yml` without repeating shared configuration.
+The three layers are concatenated in this order:
+`systemd_units_default` → `systemd_units` → `systemd_units_additional`.
+Entries sharing the same `name` **and** `type` across layers are merged into
+a single unit — a later layer overrides the same field from an earlier layer,
+and list-valued directives are merged per `systemd_list_merge_strategy`. This
+lets you define common units in `group_vars/<group>.yml` and layer
+host-specific units or overrides in `host_vars/<host>.yml` without repeating
+shared configuration.
 
 ## System-scoped vs. user-scoped units
 
@@ -75,8 +71,9 @@ per `systemd_list_merge_strategy`. This lets you set common units in
 ## Example Configuration
 
 ```yaml
-systemd_services:
+systemd_units:
   - name: myapp
+    type: service
     sections:
       Unit:
         Description: "My App"
@@ -89,8 +86,8 @@ systemd_services:
       Install:
         WantedBy: ["multi-user.target"]
 
-systemd_sockets:
   - name: myapp
+    type: socket
     sections:
       Unit:
         Description: "My App socket"
@@ -100,8 +97,9 @@ systemd_sockets:
       Install:
         WantedBy: ["sockets.target"]
 
-systemd_timers_additional:
+systemd_units_additional:
   - name: backup
+    type: timer
     scope: user
     user: deploy
     sections:
@@ -113,8 +111,8 @@ systemd_timers_additional:
       Install:
         WantedBy: ["timers.target"]
 
-systemd_services_additional:
   - name: backup
+    type: service
     scope: user
     user: deploy
     state: stopped

@@ -10,16 +10,10 @@
       - ansible_facts.service_mgr == "systemd"
     fail_msg: "This role requires systemd as the init/service manager."
 
-- name: 00-checks | Combine layered systemd variables per unit type
+- name: 00-checks | Combine layered systemd_units variables
   ansible.builtin.set_fact:
-    _systemd_units: "{{ (_systemd_units | default([])) + (
-      [lookup('vars', 'systemd_' ~ item ~ 's_default'),
-      lookup('vars', 'systemd_' ~ item ~ 's'),
-      lookup('vars', 'systemd_' ~ item ~ 's_additional')]
-      | merge_systemd_units(item, systemd_list_merge_strategy)) }}"
-  loop: "{{ systemd_types }}"
-  loop_control:
-    label: "{{ item }}"
+    _systemd_units: "{{ [systemd_units_default, systemd_units, systemd_units_additional]
+      | merge_systemd_units(systemd_list_merge_strategy) }}"
 
 - name: 00-checks | Assert unit scope is valid
   ansible.builtin.assert:
@@ -48,3 +42,10 @@
 - name: 00-checks | Determine distinct accounts owning user-scoped units
   ansible.builtin.set_fact:
     _systemd_units_user_accounts: "{{ _systemd_units_user | map(attribute='user') | unique | list }}"
+
+- name: 00-checks | Assert systemd_linger_method is valid
+  ansible.builtin.assert:
+    that:
+      - systemd_linger_method in ['file', 'command']
+    fail_msg: "systemd_linger_method must be 'file' or 'command', got '{{ systemd_linger_method }}'."
+  when: systemd_enable_linger | bool
