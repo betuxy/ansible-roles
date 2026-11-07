@@ -3,6 +3,7 @@ extends: default
 
 ignore: |
   ansible-venv/
+  "*.md"
 
 rules:
   line-length:

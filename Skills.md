@@ -18,6 +18,13 @@ source ansible-venv/bin/activate
 uv pip install -r requirements.txt
 ```
 
+If `uv` (or Python) is not available, install it first:
+
+```bash
+# On macOS and Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
 ## Key tools (all inside the venv)
 
 | Tool | Version | Purpose |
@@ -28,6 +35,14 @@ uv pip install -r requirements.txt
 | molecule | 26.4.0 | Role testing |
 | yamllint | 1.38.0 | YAML style checks |
 | black | 26.3.1 | Format Python files (custom modules/plugins) |
+
+## Project ansible.cfg
+
+A minimal `ansible.cfg` must exist at the repository root. Ansible reads exactly one config file (project-level takes full precedence over `~/.ansible.cfg` — no merging), so the project file prevents the global config's `vault_password_file` setting from applying when none is needed:
+
+```ini
+[defaults]
+```
 
 ## Common commands
 
